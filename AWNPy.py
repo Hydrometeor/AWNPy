@@ -763,13 +763,14 @@ class AWN(object):
 
         return self._get_response('stations/statistics', kwargs)
 
-    def metadata(self, **kwargs):
+    def metadata(self, return_dataframe=False, **kwargs):
         r""" Returns the metadata for a station or stations. Specifying no kwargs will return metadata for all stations.
         See below for optional parameters.
 
         Arguments:
+        return_dataframe: bool, optional
+            If true, return results as a Pandas Dataframe. If false, return results as a dict.
         ----------
-
         STATION_ID: string, optional
             You may supply a single station id value if you would like metadata for a specific station.
         INSTALLATION_DATE: string, optional
@@ -867,7 +868,10 @@ class AWN(object):
         kwargs['pass'] = self.password
 
         response_data = self._get_response('metadata', kwargs)
-        return pd.DataFrame.from_dict(response_data['message'])
+        if return_dataframe:
+            return pd.DataFrame.from_dict(response_data['message'])
+        else:
+            return response_data['message']
 
 
     def latency(self, start, end, **kwargs):
