@@ -22,6 +22,10 @@
 # ==================================================================================================================== #
 
 try:
+    import pandas as pd
+except ImportWarning:
+    print('Pandas not installed -- unable to return API calls as dataframes')
+try:
     import urllib.parse
     import urllib.request
     import urllib.error
@@ -30,6 +34,7 @@ except ImportError:
     import urllib
 
 import json
+import datetime
 import pandas as pd
 import pdb
 
@@ -101,39 +106,31 @@ class AWN(object):
 
         Returns:
         --------
-            The response from the API as a dictionary if the API code is 2.
+            The response from the API as a dictionary if response['message'] exists.
 
         Raises:
         -------
-            AWNPyError: Gives different response messages depending on returned code from API. If the response is 2,
-            resultsError is displayed. For a response of 200, an authError message is shown. A ruleError is displayed
-            if the code is 400, a formatError for -1, and catchError for any other invalid response.
+            AWNPyError: Gives different response messages depending on returned code from API. A code of -1 is for
+            invalid authentication. A code of 1 with no data means no results matched query.
 
         """
 
         results_error = 'No results were found matching your query'
         auth_error = 'Username/password not valid, please contact weather@wsu.edu to ' \
                      'resolve this'
-        rule_error = 'This request violates a rule of the API. Please check the guidelines for formatting a data ' \
-                     'request and try again'
-        catch_error = 'Something went wrong. Check all your calls and try again'
+        #rule_error = 'This request violates a rule of the API. Please check the guidelines for formatting a data ' \
+        #             'request and try again'
+        catch_error = 'Something unexpected happened. Check all your calls and try again'
 
-        print('skipping response check')
-        return response
 
-        if response['SUMMARY']['RESPONSE_CODE'] == 1:
-            return response
-        elif response['SUMMARY']['RESPONSE_CODE'] == 2:
-            if response['SUMMARY']['NUMBER_OF_OBJECTS'] == 0:
-                return None
-            raise AWNPyError(results_error)
-        elif response['SUMMARY']['RESPONSE_CODE'] == 200:
+        if response['status'] == 1:
+            try:
+                response['message']
+                return response
+            except:
+                raise AWNPyError(results_error)
+        elif response['status'] == -1:
             raise AWNPyError(auth_error)
-        elif response['SUMMARY']['RESPONSE_CODE'] == 400:
-            raise AWNPyError(rule_error)
-        elif response['SUMMARY']['RESPONSE_CODE'] == -1:
-            format_error = response['SUMMARY']['RESPONSE_MESSAGE']
-            raise AWNPyError(format_error)
         else:
             raise AWNPyError(catch_error)
 
@@ -167,7 +164,6 @@ class AWN(object):
         try:
             qsp = urllib.parse.urlencode(request_dict, doseq=True)
             resp = urllib.request.urlopen(self.base_url + endpoint + '/?' + qsp).read()
-
         # For python 2.7
         except AttributeError or NameError:
             try:
@@ -181,12 +177,14 @@ class AWN(object):
             json_data = json.loads(resp.decode('utf-8'))
         except ValueError:
             raise AWNPyError(json_error)
-        
+
         return self._checkresponse(json_data)
 
     def _check_geo_param(self, arg_list):
         r""" Checks each function call to make sure that the user has provided at least one of the following geographic
         parameters: 'stid', 'state', 'country', 'county', 'radius', 'bbox', 'cwa', 'nwsfirezone', 'gacc', or 'subgacc'.
+
+        MIGHT WANT TO REWRITE THIS TO CHECK RESPONSES?
 
         Arguments:
         ----------
@@ -209,559 +207,26 @@ class AWN(object):
             raise AWNPyError('No stations or geographic search criteria specified. Please provide one of the '
                               'following: stid, state, county, country, radius, bbox, cwa, nwsfirezone, gacc, subgacc')
 
-    def attime(self, **kwargs):
-        r""" Returns a dictionary of latest observations at a user specified location for a specified time. Users must
-        specify at least one geographic search parameter ('stid', 'state', 'country', 'county', 'radius', 'bbox', 'cwa',
-        'nwsfirezone', 'gacc', or 'subgacc') to obtain observation data. Other parameters may also be included. See
-        below for optional parameters. Also see the metadata() function for station IDs.
+
+    def _station_name_to_station_id(self, kwargs):
+        """
+        If a station name is provided instead of an ID, this function converts the STATION_NAME to STATION_ID.
 
         Arguments:
-        ----------
-        attime: string, required
-            Date and time in form of YYYYMMDDhhmm for which returned obs are closest. All times are UTC. e.g.
-            attime='201504261800'
-        within: string, required
-            Can be a single number representing a time period before attime or two comma separated numbers representing
-            a period before and after the attime e.g. attime='201306011800', within='30' would return the ob closest to
-            attime within a 30 min period before or after attime.
-        obtimezone: string, optional
-            Set to either UTC or local. Sets timezone of obs. Default is UTC. e.g. obtimezone='local'
-        showemptystations: string, optional
-            Set to '1' to show stations even if no obs exist that match the time period. Stations without obs are
-            omitted by default.
-        stid: string, optional
-            Single or comma separated list of AWN station IDs. e.g. stid='kden,kslc,wbb'
-        county: string, optional
-            County/parish/borough (US/Canada only), full name e.g. county='Larimer'
-        state: string, optional
-            US state, 2-letter ID e.g. state='CO'
-        country: string, optional
-            Single or comma separated list of abbreviated 2 or 3 character countries e.g. country='us,ca,mx'
-        radius: string, optional
-            Distance from a lat/lon pt or stid as [lat,lon,radius (mi)] or [stid, radius (mi)]. e.g. radius="-120,40,20"
-        bbox: string, optional
-            Stations within a [lon/lat] box in the order [lonmin,latmin,lonmax,latmax] e.g. bbox="-120,40,-119,41"
-        cwa: string, optional
-            NWS county warning area. See http://www.nws.noaa.gov/organization.php for CWA list. e.g. cwa='LOX'
-        nwsfirezone: string, optional
-            NWS fire zones. See http://www.nws.noaa.gov/geodata/catalog/wsom/html/firezone.htm for a shapefile
-            containing the full list of zones. e.g. nwsfirezone='LOX241'
-        gacc: string, optional
-            Name of Geographic Area Coordination Center e.g. gacc='EBCC' See http://gacc.nifc.gov/ for a list of GACCs.
-        subgacc: string, optional
-            Name of Sub GACC e.g. subgacc='EB07'
-        vars: string, optional
-            Single or comma separated list of sensor variables. Will return all stations that match one of provided
-            variables. Useful for filtering all stations that sense only certain vars. Do not request vars twice in
-            the query. e.g. vars='wind_speed,pressure' Use the variables function to see a list of sensor vars.
-        status: string, optional
-            A value of either active or inactive returns stations currently set as active or inactive in the archive.
-            Omitting this param returns all stations. e.g. status='active'
-        units: string, optional
-            String or set of strings and pipes separated by commas. Default is metric units. Set units='ENGLISH' for
-            FREEDOM UNITS ;) Valid  other combinations are as follows: temp|C, temp|F, temp|K; speed|mps, speed|mph,
-            speed|kph, speed|kts; pres|pa, pres|mb; height|m, height|ft; precip|mm, precip|cm, precip|in; alti|pa,
-            alti|inhg. e.g. units='temp|F,speed|kph,metric'
-        groupby: string, optional
-            Results can be grouped by key words: state, county, country, cwa, nwszone, mwsfirezone, gacc, subgacc
-            e.g. groupby='state'
-        timeformat: string, optional
-            A python format string for returning customized date-time groups for observation times. Can include
-            characters. e.g. timeformat='%m/%d/%Y at %H:%M'
-
+        kwargs: args from a call to stationdata(), including a STATION_NAME argument
         Returns:
-        --------
-            Dictionary of observations around a specific time.
-
-        Raises:
-        -------
-            None.
-
+        kwargs with a STATION_ID specified
         """
 
-        self._check_geo_param(kwargs)
-        kwargs['token'] = self.token
+        metadata = self.metadata(return_dataframe=True)
+        if kwargs['STATION_NAME'] not in metadata['STATION_NAME'].values:
+            raise ValueError('STATION_NAME is not in list of AgWeatherNet stations')
+        station_id = metadata.loc[metadata['STATION_NAME'][metadata['STATION_NAME'] ==
+                                                           kwargs['STATION_NAME']].index[0]]['STATION_ID']
+        kwargs['STATION_ID'] = station_id
+        kwargs.pop('STATION_NAME', None)
+        return kwargs
 
-        return self._get_response('stations/nearesttime', kwargs)
-
-    def latest(self, **kwargs):
-        r""" Returns a dictionary of latest observations at a user specified location within a specified window. Users
-        must specify at least one geographic search parameter ('stid', 'state', 'country', 'county', 'radius', 'bbox',
-        'cwa', 'nwsfirezone', 'gacc', or 'subgacc') to obtain observation data. Other parameters may also be included.
-        See below for optional parameters. Also see the metadata() function for station IDs.
-
-        Arguments:
-        ----------
-        within: string, required
-            Represents the number of minutes which would return the latest ob within that time period. e.g. within='30'
-            returns the first observation found within the last 30 minutes.
-        obtimezone: string, optional
-            Set to either UTC or local. Sets timezone of obs. Default is UTC. e.g. obtimezone='local'
-        showemptystations: string, optional
-            Set to '1' to show stations even if no obs exist that match the time period. Stations without obs are
-            omitted by default.
-        stid: string, optional
-            Single or comma separated list of AWN station IDs. e.g. stid='kden,kslc,wbb'
-        county: string, optional
-            County/parish/borough (US/Canada only), full name e.g. county='Larimer'
-        state: string, optional
-            US state, 2-letter ID e.g. state='CO'
-        country: string, optional
-            Single or comma separated list of abbreviated 2 or 3 character countries e.g. country='us,ca,mx'
-        radius: string, optional
-            Distance from a lat/lon pt or stid as [lat,lon,radius (mi)] or [stid, radius (mi)]. e.g. radius="-120,40,20"
-        bbox: string, optional
-            Stations within a [lon/lat] box in the order [lonmin,latmin,lonmax,latmax] e.g. bbox="-120,40,-119,41"
-        cwa: string, optional
-            NWS county warning area. See http://www.nws.noaa.gov/organization.php for CWA list. e.g. cwa='LOX'
-        nwsfirezone: string, optional
-            NWS fire zones. See http://www.nws.noaa.gov/geodata/catalog/wsom/html/firezone.htm for a shapefile
-            containing the full list of zones. e.g. nwsfirezone='LOX241'
-        gacc: string, optional
-            Name of Geographic Area Coordination Center e.g. gacc='EBCC' See http://gacc.nifc.gov/ for a list of GACCs.
-        subgacc: string, optional
-            Name of Sub GACC e.g. subgacc='EB07'
-        vars: string, optional
-            Single or comma separated list of sensor variables. Will return all stations that match one of provided
-            variables. Useful for filtering all stations that sense only certain vars. Do not request vars twice in
-            the query. e.g. vars='wind_speed,pressure' Use the variables function to see a list of sensor vars.
-        status: string, optional
-            A value of either active or inactive returns stations currently set as active or inactive in the archive.
-            Omitting this param returns all stations. e.g. status='active'
-        units: string, optional
-            String or set of strings and pipes separated by commas. Default is metric units. Set units='ENGLISH' for
-            FREEDOM UNITS ;) Valid  other combinations are as follows: temp|C, temp|F, temp|K; speed|mps, speed|mph,
-            speed|kph, speed|kts; pres|pa, pres|mb; height|m, height|ft; precip|mm, precip|cm, precip|in; alti|pa,
-            alti|inhg. e.g. units='temp|F,speed|kph,metric'
-        groupby: string, optional
-            Results can be grouped by key words: state, county, country, cwa, nwszone, mwsfirezone, gacc, subgacc
-            e.g. groupby='state'
-        timeformat: string, optional
-            A python format string for returning customized date-time groups for observation times. Can include
-            characters. e.g. timeformat='%m/%d/%Y at %H:%M'
-
-        Returns:
-        --------
-            Dictionary of the latest time observations.
-
-        Raises:
-        -------
-            None.
-
-        """
-
-        self._check_geo_param(kwargs)
-        kwargs['token'] = self.token
-
-        return self._get_response('stations/latest', kwargs)
-
-    def precip(self, start, end, **kwargs):
-        r""" Returns precipitation observations at a user specified location for a specified time. Users must specify at
-        least one geographic search parameter ('stid', 'state', 'country', 'county', 'radius', 'bbox', 'cwa',
-        'nwsfirezone', 'gacc', or 'subgacc') to obtain observation data. Other parameters may also be included. See
-        below mandatory and optional parameters. Also see the metadata() function for station IDs.
-
-        Arguments:
-        ----------
-        start: string, mandatory
-            Start date in form of YYYYMMDDhhmm. MUST BE USED WITH THE END PARAMETER. Default time is UTC
-            e.g., start='201306011800'
-        end: string, mandatory
-            End date in form of YYYYMMDDhhmm. MUST BE USED WITH THE START PARAMETER. Default time is UTC
-            e.g., end='201306011800'
-        obtimezone: string, optional
-            Set to either UTC or local. Sets timezone of obs. Default is UTC. e.g. obtimezone='local'
-        showemptystations: string, optional
-            Set to '1' to show stations even if no obs exist that match the time period. Stations without obs are
-            omitted by default.
-        stid: string, optional
-            Single or comma separated list of AWN station IDs. e.g. stid='kden,kslc,wbb'
-        county: string, optional
-            County/parish/borough (US/Canada only), full name e.g. county='Larimer'
-        state: string, optional
-            US state, 2-letter ID e.g. state='CO'
-        country: string, optional
-            Single or comma separated list of abbreviated 2 or 3 character countries e.g. country='us,ca,mx'
-        radius: list, optional
-            Distance from a lat/lon pt or stid as [lat,lon,radius (mi)] or [stid, radius (mi)]. e.g. radius="-120,40,20"
-        bbox: list, optional
-            Stations within a [lon/lat] box in the order [lonmin,latmin,lonmax,latmax] e.g. bbox="-120,40,-119,41"
-        cwa: string, optional
-            NWS county warning area. See http://www.nws.noaa.gov/organization.php for CWA list. e.g. cwa='LOX'
-        nwsfirezone: string, optional
-            NWS fire zones. See http://www.nws.noaa.gov/geodata/catalog/wsom/html/firezone.htm for a shapefile
-            containing the full list of zones. e.g. nwsfirezone='LOX241'
-        gacc: string, optional
-            Name of Geographic Area Coordination Center e.g. gacc='EBCC' See http://gacc.nifc.gov/ for a list of GACCs.
-        subgacc: string, optional
-            Name of Sub GACC e.g. subgacc='EB07'
-        vars: string, optional
-            Single or comma separated list of sensor variables. Will return all stations that match one of provided
-            variables. Useful for filtering all stations that sense only certain vars. Do not request vars twice in
-            the query. e.g. vars='wind_speed,pressure' Use the variables function to see a list of sensor vars.
-        status: string, optional
-            A value of either active or inactive returns stations currently set as active or inactive in the archive.
-            Omitting this param returns all stations. e.g. status='active'
-        units: string, optional
-            String or set of strings and pipes separated by commas. Default is metric units. Set units='ENGLISH' for
-            FREEDOM UNITS ;) Valid  other combinations are as follows: temp|C, temp|F, temp|K; speed|mps, speed|mph,
-            speed|kph, speed|kts; pres|pa, pres|mb; height|m, height|ft; precip|mm, precip|cm, precip|in; alti|pa,
-            alti|inhg. e.g. units='temp|F,speed|kph,metric'
-        groupby: string, optional
-            Results can be grouped by key words: state, county, country, cwa, nwszone, mwsfirezone, gacc, subgacc
-            e.g. groupby='state'
-        timeformat: string, optional
-            A python format string for returning customized date-time groups for observation times. Can include
-            characters. e.g. timeformat='%m/%d/%Y at %H:%M'
-
-        Returns:
-        --------
-            Dictionary of precipitation observations.
-
-        Raises:
-        -------
-            None.
-
-        """
-
-        self._check_geo_param(kwargs)
-        kwargs['start'] = start
-        kwargs['end'] = end
-        kwargs['token'] = self.token
-
-        return self._get_response('stations/precipitation', kwargs)
-
-    def timeseries(self, start, end, **kwargs):
-        r""" Returns a time series of observations at a user specified location for a specified time. Users must specify
-        at least one geographic search parameter ('stid', 'state', 'country', 'county', 'radius', 'bbox', 'cwa',
-        'nwsfirezone', 'gacc', or 'subgacc') to obtain observation data. Other parameters may also be included. See
-        below mandatory and optional parameters. Also see the metadata() function for station IDs.
-
-        Arguments:
-        ----------
-        start: string, mandatory
-            Start date in form of YYYYMMDDhhmm. MUST BE USED WITH THE END PARAMETER. Default time is UTC
-            e.g., start='201306011800'
-        end: string, mandatory
-            End date in form of YYYYMMDDhhmm. MUST BE USED WITH THE START PARAMETER. Default time is UTC
-            e.g., end='201306011800'
-        obtimezone: string, optional
-            Set to either UTC or local. Sets timezone of obs. Default is UTC. e.g. obtimezone='local'
-        showemptystations: string, optional
-            Set to '1' to show stations even if no obs exist that match the time period. Stations without obs are
-            omitted by default.
-        stid: string, optional
-            Single or comma separated list of AWN station IDs. e.g. stid='kden,kslc,wbb'
-        county: string, optional
-            County/parish/borough (US/Canada only), full name e.g. county='Larimer'
-        state: string, optional
-            US state, 2-letter ID e.g. state='CO'
-        country: string, optional
-            Single or comma separated list of abbreviated 2 or 3 character countries e.g. country='us,ca,mx'
-        radius: string, optional
-            Distance from a lat/lon pt or stid as [lat,lon,radius (mi)] or [stid, radius (mi)]. e.g. radius="-120,40,20"
-        bbox: string, optional
-            Stations within a [lon/lat] box in the order [lonmin,latmin,lonmax,latmax] e.g. bbox="-120,40,-119,41"
-        cwa: string, optional
-            NWS county warning area. See http://www.nws.noaa.gov/organization.php for CWA list. e.g. cwa='LOX'
-        nwsfirezone: string, optional
-            NWS fire zones. See http://www.nws.noaa.gov/geodata/catalog/wsom/html/firezone.htm for a shapefile
-            containing the full list of zones. e.g. nwsfirezone='LOX241'
-        gacc: string, optional
-            Name of Geographic Area Coordination Center e.g. gacc='EBCC' See http://gacc.nifc.gov/ for a list of GACCs.
-        subgacc: string, optional
-            Name of Sub GACC e.g. subgacc='EB07'
-        vars: string, optional
-            Single or comma separated list of sensor variables. Will return all stations that match one of provided
-            variables. Useful for filtering all stations that sense only certain vars. Do not request vars twice in
-            the query. e.g. vars='wind_speed,pressure' Use the variables function to see a list of sensor vars.
-        status: string, optional
-            A value of either active or inactive returns stations currently set as active or inactive in the archive.
-            Omitting this param returns all stations. e.g. status='active'
-        units: string, optional
-            String or set of strings and pipes separated by commas. Default is metric units. Set units='ENGLISH' for
-            FREEDOM UNITS ;) Valid  other combinations are as follows: temp|C, temp|F, temp|K; speed|mps, speed|mph,
-            speed|kph, speed|kts; pres|pa, pres|mb; height|m, height|ft; precip|mm, precip|cm, precip|in; alti|pa,
-            alti|inhg. e.g. units='temp|F,speed|kph,metric'
-        groupby: string, optional
-            Results can be grouped by key words: state, county, country, cwa, nwszone, mwsfirezone, gacc, subgacc
-            e.g. groupby='state'
-        timeformat: string, optional
-            A python format string for returning customized date-time groups for observation times. Can include
-            characters. e.g. timeformat='%m/%d/%Y at %H:%M'
-
-        Returns:
-        --------
-            Dictionary of time series observations through the get_response() function.
-
-        Raises:
-        -------
-            None.
-        """
-
-        self._check_geo_param(kwargs)
-        kwargs['start'] = start
-        kwargs['end'] = end
-        kwargs['token'] = self.token
-
-        return self._get_response('stations/timeseries', kwargs)
-
-    def climatology(self, startclim, endclim, **kwargs):
-        r""" Returns a climatology of observations at a user specified location for a specified time. Users must specify
-        at least one geographic search parameter ('stid', 'state', 'country', 'county', 'radius', 'bbox', 'cwa',
-        'nwsfirezone', 'gacc', or 'subgacc') to obtain observation data. Other parameters may also be included. See
-        below mandatory and optional parameters. Also see the metadata() function for station IDs.
-
-        Arguments:
-        ----------
-        startclim: string, mandatory
-            Start date in form of MMDDhhmm. MUST BE USED WITH THE ENDCLIM PARAMETER. Default time is UTC
-            e.g. startclim='06011800' Do not specify a year
-        endclim: string, mandatory
-            End date in form of MMDDhhmm. MUST BE USED WITH THE STARTCLIM PARAMETER. Default time is UTC
-            e.g. endclim='06011800' Do not specify a year
-        obtimezone: string, optional
-            Set to either UTC or local. Sets timezone of obs. Default is UTC. e.g. obtimezone='local'
-        showemptystations: string, optional
-            Set to '1' to show stations even if no obs exist that match the time period. Stations without obs are
-            omitted by default.
-        stid: string, optional
-            Single or comma separated list of AWN station IDs. e.g. stid='kden,kslc,wbb'
-        county: string, optional
-            County/parish/borough (US/Canada only), full name e.g. county='Larimer'
-        state: string, optional
-            US state, 2-letter ID e.g. state='CO'
-        country: string, optional
-            Single or comma separated list of abbreviated 2 or 3 character countries e.g. country='us,ca,mx'
-        radius: string, optional
-            Distance from a lat/lon pt or stid as [lat,lon,radius (mi)] or [stid, radius (mi)]. e.g. radius="-120,40,20"
-        bbox: string, optional
-            Stations within a [lon/lat] box in the order [lonmin,latmin,lonmax,latmax] e.g. bbox="-120,40,-119,41"
-        cwa: string, optional
-            NWS county warning area. See http://www.nws.noaa.gov/organization.php for CWA list. e.g. cwa='LOX'
-        nwsfirezone: string, optional
-            NWS fire zones. See http://www.nws.noaa.gov/geodata/catalog/wsom/html/firezone.htm for a shapefile
-            containing the full list of zones. e.g. nwsfirezone='LOX241'
-        gacc: string, optional
-            Name of Geographic Area Coordination Center e.g. gacc='EBCC' See http://gacc.nifc.gov/ for a list of GACCs.
-        subgacc: string, optional
-            Name of Sub GACC e.g. subgacc='EB07'
-        vars: string, optional
-            Single or comma separated list of sensor variables. Will return all stations that match one of provided
-            variables. Useful for filtering all stations that sense only certain vars. Do not request vars twice in
-            the query. e.g. vars='wind_speed,pressure' Use the variables function to see a list of sensor vars.
-        status: string, optional
-            A value of either active or inactive returns stations currently set as active or inactive in the archive.
-            Omitting this param returns all stations. e.g. status='active'
-        units: string, optional
-            String or set of strings and pipes separated by commas. Default is metric units. Set units='ENGLISH' for
-            FREEDOM UNITS ;) Valid  other combinations are as follows: temp|C, temp|F, temp|K; speed|mps, speed|mph,
-            speed|kph, speed|kts; pres|pa, pres|mb; height|m, height|ft; precip|mm, precip|cm, precip|in; alti|pa,
-            alti|inhg. e.g. units='temp|F,speed|kph,metric'
-        groupby: string, optional
-            Results can be grouped by key words: state, county, country, cwa, nwszone, mwsfirezone, gacc, subgacc
-            e.g. groupby='state'
-        timeformat: string, optional
-            A python format string for returning customized date-time groups for observation times. Can include
-            characters. e.g. timeformat='%m/%d/%Y at %H:%M'
-
-        Returns:
-        --------
-            Dictionary of climatology observations through the get_response() function.
-
-        Raises:
-        -------
-            None.
-
-        """
-
-        self._check_geo_param(kwargs)
-        kwargs['startclim'] = startclim
-        kwargs['endclim'] = endclim
-        kwargs['token'] = self.token
-
-        return self._get_response('stations/climatology', kwargs)
-
-    def variables(self):
-        """ Returns a dictionary of a list of variables that could be obtained from the 'vars' param in other functions.
-        Some stations may not record all variables listed. Use the metadata() function to return metadata on each
-        station.
-
-        Arguments:
-        ----------
-            None.
-
-        Returns:
-        --------
-            Dictionary of variables.
-
-        Raises:
-        -------
-            None.
-
-        """
-
-        return self._get_response('variables', {'uname': self.username, 'pass': self.password})
-
-    def climate_stats(self, startclim, endclim, type, **kwargs):
-        r""" Returns a dictionary of aggregated yearly climate statistics (count, standard deviation,
-        average, median, maximum, minimum, min time, and max time depending on user specified type) of a time series
-        for a specified range of time at user specified location.  Users must specify at least one geographic search
-        parameter ('stid', 'state', 'country', 'county', 'radius', 'bbox', 'cwa', 'nwsfirezone', 'gacc', or 'subgacc')
-        to obtain observation data. Other parameters may also be included. See below mandatory and optional parameters.
-        Also see the metadata() function for station IDs.
-
-        Arguments:
-        ----------
-        type: string, mandatory
-            Describes what statistical values will be returned. Can be one of the following values:
-            "avg"/"average"/"mean", "max"/"maximum", "min"/"minimum", "stdev"/"standarddeviation"/"std", "median"/"med",
-            "count", or "all". "All" will return all of the statistics.
-        startclim: string, mandatory
-            Start date in form of MMDDhhmm. MUST BE USED WITH THE ENDCLIM PARAMETER. Default time is UTC
-            e.g. startclim=06011800 Do not specify a year.
-        endclim: string, mandatory
-            End date in form of MMDDhhmm. MUST BE USED WITH THE STARTCLIM PARAMETER. Default time is UTC
-            e.g. endclim=06011800 Do not specify a year.
-        obtimezone: string, optional
-            Set to either UTC or local. Sets timezone of obs. Default is UTC. e.g. obtimezone='local'.
-        showemptystations: string, optional
-            Set to '1' to show stations even if no obs exist that match the time period. Stations without obs are
-            omitted by default.
-        stid: string, optional
-            Single or comma separated list of AWN station IDs. e.g. stid='kden,kslc,wbb'
-        county: string, optional
-            County/parish/borough (US/Canada only), full name e.g. county='Larimer'
-        state: string, optional
-            US state, 2-letter ID e.g. state='CO'
-        country: string, optional
-            Single or comma separated list of abbreviated 2 or 3 character countries e.g. country='us,ca,mx'
-        radius: string, optional
-            Distance from a lat/lon pt or stid as [lat,lon,radius (mi)] or [stid, radius (mi)]. e.g. radius="-120,40,20"
-        bbox: string, optional
-            Stations within a [lon/lat] box in the order [lonmin,latmin,lonmax,latmax] e.g. bbox="-120,40,-119,41"
-        cwa: string, optional
-            NWS county warning area. See http://www.nws.noaa.gov/organization.php for CWA list. e.g. cwa='LOX'
-        nwsfirezone: string, optional
-            NWS fire zones. See http://www.nws.noaa.gov/geodata/catalog/wsom/html/firezone.htm for a shapefile
-            containing the full list of zones. e.g. nwsfirezone='LOX241'
-        gacc: string, optional
-            Name of Geographic Area Coordination Center e.g. gacc='EBCC' See http://gacc.nifc.gov/ for a list of GACCs.
-        subgacc: string, optional
-            Name of Sub GACC e.g. subgacc='EB07'
-        vars: string, optional
-            Single or comma separated list of sensor variables. Will return all stations that match one of provided
-            variables. Useful for filtering all stations that sense only certain vars. Do not request vars twice in
-            the query. e.g. vars='wind_speed,pressure' Use the variables function to see a list of sensor vars.
-        units: string, optional
-            String or set of strings and pipes separated by commas. Default is metric units. Set units='ENGLISH' for
-            FREEDOM UNITS ;) Valid  other combinations are as follows: temp|C, temp|F, temp|K; speed|mps, speed|mph,
-            speed|kph, speed|kts; pres|pa, pres|mb; height|m, height|ft; precip|mm, precip|cm, precip|in; alti|pa,
-            alti|inhg. e.g. units='temp|F,speed|kph,metric'
-        groupby: string, optional
-            Results can be grouped by key words: state, county, country, cwa, nwszone, mwsfirezone, gacc, subgacc
-            e.g. groupby='state'
-        timeformat: string, optional
-            A python format string for returning customized date-time groups for observation times. Can include
-            characters. e.g. timeformat='%m/%d/%Y at %H:%M'
-
-        Returns:
-        --------
-            Dictionary of aggregated climatology statistics.
-
-        Raises:
-        -------
-            None.
-
-        """
-
-        self._check_geo_param(kwargs)
-        kwargs['type'] = type
-        kwargs['startclim'] = startclim
-        kwargs['endclim'] = endclim
-        kwargs['token'] = self.token
-
-        return self._get_response('stations/climatology', kwargs)
-
-    def time_stats(self, start, end, type, **kwargs):
-        r""" Returns a dictionary of discrete time statistics (count, standard deviation, average, median, maximum,
-        minimum, min time, and max time depending on user specified type) of a time series for a specified range of time
-        at user specified location. Users must specify at least one geographic search parameter ('stid', 'state',
-        'country', 'county', 'radius', 'bbox', 'cwa', 'nwsfirezone', 'gacc', or 'subgacc') to obtain observation data.
-        Other parameters may also be included. See below mandatory and optional parameters. Also see the metadata()
-        function for station IDs.
-
-        Arguments:
-        ----------
-        type: string, mandatory
-            Describes what statistical values will be returned. Can be one of the following values:
-            "avg"/"average"/"mean", "max"/"maximum", "min"/"minimum", "stdev"/"standarddeviation"/"std", "median"/"med",
-            "count", or "all". "All" will return all of the statistics.
-        start: string, optional
-            Start date in form of YYYYMMDDhhmm. MUST BE USED WITH THE END PARAMETER. Default time is UTC
-            e.g. start=201506011800.
-        end: string, optional
-            End date in form of YYYYMMDDhhmm. MUST BE USED WITH THE START PARAMETER. Default time is UTC
-            e.g. end=201506011800.
-        obtimezone: string, optional
-            Set to either UTC or local. Sets timezone of obs. Default is UTC. e.g. obtimezone='local'
-        showemptystations: string, optional
-            Set to '1' to show stations even if no obs exist that match the time period. Stations without obs are
-            omitted by default.
-        stid: string, optional
-            Single or comma separated list of AWN station IDs. e.g. stid='kden,kslc,wbb'
-        county: string, optional
-            County/parish/borough (US/Canada only), full name e.g. county='Larimer'
-        state: string, optional
-            US state, 2-letter ID e.g. state='CO'
-        country: string, optional
-            Single or comma separated list of abbreviated 2 or 3 character countries e.g. country='us,ca,mx'
-        radius: list, optional
-            Distance from a lat/lon pt or stid as [lat,lon,radius (mi)] or [stid, radius (mi)]. e.g. radius="-120,40,20"
-        bbox: string, optional
-            Stations within a [lon/lat] box in the order [lonmin,latmin,lonmax,latmax] e.g. bbox="-120,40,-119,41"
-        cwa: string, optional
-            NWS county warning area. See http://www.nws.noaa.gov/organization.php for CWA list. e.g. cwa='LOX'
-        nwsfirezone: string, optional
-            NWS fire zones. See http://www.nws.noaa.gov/geodata/catalog/wsom/html/firezone.htm for a shapefile
-            containing the full list of zones. e.g. nwsfirezone='LOX241'
-        gacc: string, optional
-            Name of Geographic Area Coordination Center e.g. gacc='EBCC' See http://gacc.nifc.gov/ for a list of GACCs.
-        subgacc: string, optional
-            Name of Sub GACC e.g. subgacc='EB07'
-        vars: string, optional
-            Single or comma separated list of sensor variables. Will return all stations that match one of provided
-            variables. Useful for filtering all stations that sense only certain vars. Do not request vars twice in
-            the query. e.g. vars='wind_speed,pressure' Use the variables function to see a list of sensor vars.
-        units: string, optional
-            String or set of strings and pipes separated by commas. Default is metric units. Set units='ENGLISH' for
-            FREEDOM UNITS ;) Valid  other combinations are as follows: temp|C, temp|F, temp|K; speed|mps, speed|mph,
-            speed|kph, speed|kts; pres|pa, pres|mb; height|m, height|ft; precip|mm, precip|cm, precip|in; alti|pa,
-            alti|inhg. e.g. units='temp|F,speed|kph,metric'
-        groupby: string, optional
-            Results can be grouped by key words: state, county, country, cwa, nwszone, mwsfirezone, gacc, subgacc
-            e.g. groupby='state'
-        timeformat: string, optional
-            A python format string for returning customized date-time groups for observation times. Can include
-            characters. e.g. timeformat='%m/%d/%Y at %H:%M'
-
-        Returns:
-        --------
-            Dictionary of discrete time statistics.
-
-        Raises:
-        -------
-            None.
-
-        """
-
-        self._check_geo_param(kwargs)
-        kwargs['type'] = type
-        kwargs['start'] = start
-        kwargs['end'] = end
-        kwargs['token'] = self.token
-
-        return self._get_response('stations/statistics', kwargs)
 
     def metadata(self, return_dataframe=False, **kwargs):
         r""" Returns the metadata for a station or stations. Specifying no kwargs will return metadata for all stations.
@@ -873,67 +338,99 @@ class AWN(object):
         else:
             return response_data['message']
 
-
-    def latency(self, start, end, **kwargs):
-        r""" Returns data latency values for a station based on a start and end date/time. Users must specify at least
-        one geographic search parameter ('stid', 'state', 'country', 'county', 'radius', 'bbox', 'cwa', 'nwsfirezone',
-        'gacc', or 'subgacc') to obtain observation data. Other parameters may also be included. See below mandatory and
-        optional parameters. Also see the metadata() function for station IDs.
+    def stationdata(self, return_dataframe=False, **kwargs):
+        r""" Returns station data station or stations. Specifying no kwargs will return data for all stations.
+        See below for optional parameters.
 
         Arguments:
+        return_dataframe: bool, optional
+            If true, return results as a Pandas Dataframe. If false, return results as a dict.
         ----------
-        start: string, mandatory
-            Start date in form of YYYYMMDDhhmm. MUST BE USED WITH THE END PARAMETER. Default time is UTC
-            e.g. start='201506011800'
-        end: string, mandatory
-            End date in form of YYYYMMDDhhmm. MUST BE USED WITH THE START PARAMETER. Default time is UTC
-            e.g. end='201506011800'
-        stats: string, optional
-            Describes what statistical values will be returned. Can be one of the following values:
-            "avg"/"average"/"mean", "max"/"maximum", "min"/"minimum", "stdev"/"standarddeviation"/"std", "median"/"med",
-            "count", or "all". "All" will return all of the statistics. e.g. stats='avg'
-        obtimezone: string, optional
-            Set to either UTC or local. Sets timezone of obs. Default is UTC. e.g. obtimezone='local'
-        stid: string, optional
-            Single or comma separated list of AWN station IDs. e.g. stid='kden,kslc,wbb'
-        county: string, optional
-            County/parish/borough (US/Canada only), full name e.g. county='Larimer'
-        state: string, optional
-            US state, 2-letter ID e.g. state='CO'
-        country: string, optional
-            Single or comma separated list of abbreviated 2 or 3 character countries e.g. country='us,ca,mx'
-        radius: list, optional
-            Distance from a lat/lon pt or stid as [lat,lon,radius (mi)] or [stid, radius (mi)]. e.g. radius="-120,40,20"
-        bbox: string, optional
-            Stations within a [lon/lat] box in the order [lonmin,latmin,lonmax,latmax] e.g. bbox="-120,40,-119,41"
-        cwa: string, optional
-            NWS county warning area. See http://www.nws.noaa.gov/organization.php for CWA list. e.g. cwa='LOX'
-        nwsfirezone: string, optional
-            NWS fire zones. See http://www.nws.noaa.gov/geodata/catalog/wsom/html/firezone.htm for a shapefile
-            containing the full list of zones. e.g. nwsfirezone='LOX241'
-        gacc: string, optional
-            Name of Geographic Area Coordination Center e.g. gacc='EBCC' See http://gacc.nifc.gov/ for a list of GACCs.
-        subgacc: string, optional
-            Name of Sub GACC e.g. subgacc='EB07'
-        vars: string, optional
-            Single or comma separated list of sensor variables. Will return all stations that match one of provided
-            variables. Useful for filtering all stations that sense only certain vars. Do not request vars twice in
-            the query. e.g. vars='wind_speed,pressure' Use the variables() function to see a list of sensor vars.
-        units: string, optional
-            String or set of strings and pipes separated by commas. Default is metric units. Set units='ENGLISH' for
-            FREEDOM UNITS ;) Valid  other combinations are as follows: temp|C, temp|F, temp|K; speed|mps, speed|mph,
-            speed|kph, speed|kts; pres|pa, pres|mb; height|m, height|ft; precip|mm, precip|cm, precip|in; alti|pa,
-            alti|inhg. e.g. units='temp|F,speed|kph,metric'
-        groupby: string, optional
-            Results can be grouped by key words: state, county, country, cwa, nwszone, mwsfirezone, gacc, subgacc
-            e.g. groupby='state'
-        timeformat: string, optional
-            A python format string for returning customized date-time groups for observation times. Can include
-            characters. e.g. timeformat='%m/%d/%Y at %H:%M'
+        STATION_ID: string, optional
+            You may supply a single station id value if you would like metadata for a specific station.
+        INSTALLATION_DATE: string, optional
+            If supplied, only stations installed before the date will be returned.
+            Dates should be in YYYYmmdd format.
+        STATE: string (2 character abbreviation), optional
+            If supplied, only stations that match the two character state abbreviation will be returned.
+        COUNTY: string, optional
+            If supplied, only stations that match the county will be returned.
+        AT: string, optional
+            If supplied, valid values are “Y” or “N”.  Stations will be filtered on whether or not they have an air
+            temperature sensor (Y=Yes, N=No).
+        RH: string, optional
+            If supplied, valid values are “Y” or “N”.  Stations will be filtered on whether or not they have a relative
+            humidity sensor (Y=Yes, N=No).
+        P: string, optional
+            If supplied, valid values are “Y” or “N”. Stations will be filtered on whether or not they have a
+            precipitation sensor (Y=Yes, N=No).
+        WS: string, optional
+            If supplied, valid values are “Y” or “N”.  Stations will be filtered on whether or not they have a wind
+            speed sensor (Y=Yes, N=No).
+        WD: string, optional
+            If supplied, valid values are “Y” or “N”.  Stations will be filtered on whether or not they have a wind
+            direction sensor (Y=Yes, N=No).
+        LW: string, optional
+            If supplied, valid values are “Y” or “N”.  Stations will be filtered on whether or not they have a leaf
+            wetness sensor (Y=Yes, N=No).
+        SR: string, optional
+            If supplied, valid values are “Y” or “N”.  Stations will be filtered on whether or not they have a
+            solar radiation sensor (Y=Yes, N=No).
+        ST2: string, optional
+            If supplied, valid values are “Y” or “N”.  Stations will befiltered on whether or not they have a soil
+            temperature sensor at 2 inch depth (Y=Yes, N=No).
+        ST8: string, optional
+            If supplied, valid values are “Y” or “N”.  Stations will be filtered on whether or not they have a soil
+            temperature sensor at 8 inch depth (Y=Yes, N=No).
+        SM8: string, optional
+            If supplied, valid values are “Y” or “N”.  Stations will be filtered on whether or not they have a soil
+             moisture sensor at 8 inch depth (Y=Yes, N=No).
+        MSLP: string, optional
+            If supplied, valid values are “Y” or “N”.  Stations will be filtered on whether or not they have an air
+             pressure sensor (Y=Yes, N=No).
 
         Returns:
         --------
-            Dictionary of latency data.
+        A pandas dataframe of metadata containing the following:
+        STATE: The 2 letter abbreviation of the state (political entity) where the weather station resides.
+        COUNTY: The county (secondary political entity) where the the weather station resides.
+        CITY: The nearest identified population center to the station, if available.  This may be null or an empty
+            string.
+        ZIPCODE: The zip code where the weather station resides, if available. This may be null or an empty string.
+        LATITUDE_DEGREE: The latitude of the physical location of the weather station, in degrees
+        LONGITUDE_DEGREE: The longitude of the physical location of the weather station, in degrees.
+        ELEVATION_FEET: The elevation compared to sea level of the base of the weather station.
+        INSTALLATION_DATE: The installation date of the weather station.  Data is available from the installation date
+            through present.  The installation date is returned in YYYY-mm-dd format.
+        STATION_ID: The unique station identifier assigned by the AgWeatherNet program to the weather station.
+        STATION_NAME: The current common name of the weather station.  This may change without notice and is intended
+            as a friendly reference to the station.
+        OLD_LONG_NAME: The old name of the weather station if it was changed.
+        STATION_SPONSOR: Acknowledgements of support or contributions to the location, installation or maintenance of
+            a weather station
+        TIER: Station tier (1, 2, or 3). See weather.wsu.edu for details.
+        AT_F: If the weather station has an air temperature sensor installed that reports in Degrees Fahrenheit, then
+            the value will be Y.  If no sensor is installed, then the value will be N.
+        RH_PCNT: If the weather station has a relative humidity sensor installed that reports in Percent, then the
+            value will be Y.  If no sensor is installed, then the value will be N.
+        P_INCHES: If the weather station has a precipitation sensor installed that reports in Inches, then the value
+            will be Y.  If no sensor is installed, then the value will be N.
+        WS_MPH: If the weather station has a wind speed sensor installed that reports in Miles Per Hour, then the value
+            will be Y.  If no sensor is installed, then the value will be N.
+        WD_DEGREE: If the weather station has a wind direction sensor installed that reports in Compass Degrees, then
+            the value will be Y.  If no sensor is installed, then the value will be N.
+        LW_UNITIY: If the weather station has a leaf wetness sensor installed that reports in Unity (values between 0
+            and 1, 0.4 considered wet), then the value will be Y.  If no sensor is installed, then the value will be N.
+        SR_WM2: If the weather station has a solarradiation sensor installed that reports in Watts per Meter Squared,
+            then the value will be Y.  If no sensor is installed, then the value will be N.
+        ST2_F: If the weather station has a soil temperature sensor installed at a 2 inch depth that reports in Degrees
+            Fahrenheit, then the value will be Y.  If no sensor is installed, then the value will be N.
+        ST8_F: If the weather station has a soil temperature sensor installed at a 8 inch depth that reports in Degrees
+            Fahrenheit, then the value willbe Y.  If no sensor is installed, then the value will be N.
+        STM8_PCNT: If the weather station has a soil moisture sensor installed at a8 inch depth that reports in Percent
+            Volumetric Water Content, then the value will be Y.  If no sensor is installed, then the value will be N.
+        MSLP_HPA: If the weather station has a barometric pressure sensor installed that reports in HPA (hecto pascals),
+            then the value will be Y.  If no sensor is installed, then the value will be N.
 
         Raises:
         -------
@@ -941,91 +438,31 @@ class AWN(object):
 
         """
 
-        self._check_geo_param(kwargs)
-        kwargs['start'] = start
-        kwargs['end'] = end
-        kwargs['token'] = self.token
+        kwargs['uname'] = self.username
+        kwargs['pass'] = self.password
+        # convert datetimes to strings that the API can read
+        #self._datetime_to_string(kwargs)
+        # if STATION_NAME specified, convert to STATION_ID
+        if 'STATION_NAME' in kwargs:
+            kwargs = self._station_name_to_station_id(kwargs)
 
-        return self._get_response('stations/latency', kwargs)
+        response_data = self._get_response('stationdata', kwargs)
+        pdb.set_trace()
 
-    def networks(self, **kwargs):
-        r""" Returns the metadata associated with the AWN network ID(s) entered. Leaving this function blank will
-        return all networks in AWN.
+        pd.DataFrame.from_dict(response_data['message'])
 
-        Arguments:
-        ----------
-        id: string, optional
-            A single or comma-separated list of AWNNet network categories. e.g. ids='1,2,3'
-        shortname: string, optional
-            A single or comma-separated list of abbreviations or short names. e.g shortname='DUGWAY,RAWS'
-        sortby: string, optional
-            Determines how to sort the returned networks. The only valid value is 'alphabet' which orders the results
-            in alphabetical order. By default, networks are sorted by ID. e.g. sortby='alphabet'
-        timeformat: string, optional
-            A python format string for returning customized date-time groups for observation times. Can include
-            characters. e.g. timeformat='%m/%d/%Y at %H:%M'
+        pd.DataFrame.from_dict(response_data['message'][0]['DATA'])
 
-        Returns:
-        --------
-            Dictionary of network descriptions.
+        pdb.set_trace()
 
-        Raises:
-        -------
-            None.
 
+
+        return
+
+    def _stationdata_to_dataframe(self, response):
+        """
+        helper function to convert station data into a pandas dataframe
+        :param response: the response to a
+        :return:
         """
 
-        kwargs['token'] = self.token
-
-        return self._get_response('networks', kwargs)
-
-    def networktypes(self, **kwargs):
-        r""" Returns the network type metadata depending on the ID specified. Can be left blank to return all network
-        types.
-
-        Arguments:
-        ----------
-        id: string, optional
-            A single or comma-separated list of AWNNet categories. e.g.: type_ids='1,2,3'
-
-        Returns:
-        --------
-            Dictionary of network type descriptions.
-
-        Raises:
-        -------
-            None.
-
-        """
-
-        kwargs['token'] = self.token
-
-        return self._get_response('networktypes', kwargs)
-
-        # Leaving off qctypes until I get the qctypes response to give response code/msg
-
-        # def qc_types(self, **kwargs):
-        #     r""" Returns the quality control and internal consistency test types used by AWN. These include AWN
-        #     checks and MADIS checks. Leaving this blank will return all QC types.
-        #
-        #     Arguments:
-        #     ----------
-        #     id: string, optional
-        #         A single or comma-separated list of test ids. e.g. id='1,2,3'
-        #     shortname: string, optional
-        #         A single or comma-separated list of AWN QC/IC test shortnames. e.g. shortname='mw_range_check'
-        #
-        #
-        #     Returns:
-        #     --------
-        #         Dictionary of QC types.
-        #
-        #     Raises:
-        #     -------
-        #         None.
-        #
-        #     """
-        #
-        #     kwargs['token'] = self.token
-        #
-        #     return self._get_response('qctypes', kwargs)
