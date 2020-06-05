@@ -2,7 +2,8 @@
 
 AWNPy is a small pure python wrapper around the AgWeatherNet (http://weather.wsu.edu/) API. It is useful for retrieving meteorological data at AWN weather stations. This project was created with code from MesoPy (https://github.com/mesowx/MesoPy).
 
-**Before using AWNPy, you will need to register with AgWeatherNet and obtain permission to access the API** Once you have permission you will need your AgWeatherNet username and password: `m = Meso(user='YOUR USERNAME', pass='YOUR PASSWORD')`
+**Before using AWNPy, you will need to register with AgWeatherNet and obtain permission to access the API** Once you have permission you will need your AgWeatherNet username and password: 
+`m = AWN(user='YOUR USERNAME', pass='YOUR PASSWORD')`
 
 ## Installation
 
@@ -16,7 +17,7 @@ You can request different types of observations by simply creating a Meso object
 from AWNPy import AWN
 m = AWN(user='YOUR USERNAME', pass='YOUR PASSWORD)
 ---allow datetime or time list!!!
-stationdata = m.stationdata(stid='kfnl', start='201504261800', end='201504271200')
+stationdata = m.stationdata(stid='330092', start=datetime(2020,5,1,0,0), end=datetime(2020,5,2,0,0)
 ```
 
 #### Function List:
