@@ -16,7 +16,6 @@ You can request different types of observations by simply creating a Meso object
 ```
 from AWNPy import AWN
 m = AWN(user='YOUR USERNAME', pass='YOUR PASSWORD)
----allow datetime or time list!!!
 stationdata = m.stationdata(stid='330092', start=datetime(2020,5,1,0,0), end=datetime(2020,5,2,0,0)
 ```
 
