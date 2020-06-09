@@ -236,7 +236,9 @@ class AWN(object):
         Converts returned DATA dictionaries into pandas dataframes
         """
         df = pd.DataFrame.from_dict(data_dict)
-        pdb.set_trace()
+        # if no data simply return the empty dataframe
+        if df.empty:
+            return df
         df.set_index('TIMESTAMP_PST', inplace=True)
         df.index = pd.to_datetime(df.index)
         if return_timezone == 'UTC':
@@ -248,6 +250,16 @@ class AWN(object):
         else:
             raise ValueError('Invalid return_timezone. Must be UTC, PDT, or PST')
         return df
+
+
+    def _string_date_to_datetime(self, kwargs):
+        """
+        Converts string dates to datetimes
+        """
+
+
+
+        return kwargs
 
 
     def metadata(self, return_dataframe=False, **kwargs):
@@ -506,8 +518,8 @@ class AWN(object):
 
         kwargs['uname'] = self.username
         kwargs['pass'] = self.password
-        # convert datetimes to strings that the API can read
-        #self._datetime_to_string(kwargs)
+        # if start/end are passed as strings, convert to datetime
+        #self._string_date_to_datetime(kwargs)
         # if STATION_NAME specified, convert to STATION_ID
         if 'STATION_NAME' in kwargs:
             kwargs = self._station_name_to_station_id(kwargs)
@@ -523,7 +535,7 @@ class AWN(object):
                 df_dict = {}
                 for i in range(0, num_stations):
                     df = self._data_dict_to_dataframe(response_data['message'][i]['DATA'], return_timezone)
-                    station_id = int(response_data['message'][0]['STATION_ID'])
+                    station_id = int(response_data['message'][i]['STATION_ID'])
                     df_dict[station_id] = df
                 return df_dict
 
