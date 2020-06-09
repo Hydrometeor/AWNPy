@@ -1,6 +1,6 @@
 # AWNPy
 
-AWNPy is a small pure python wrapper around the AgWeatherNet (http://weather.wsu.edu/) API. It is useful for retrieving meteorological data at AWN weather stations. This project was created with code from MesoPy (https://github.com/mesowx/MesoPy).
+AWNPy is a small pure python wrapper around the AgWeatherNet (https://weather.wsu.edu/) API. It is useful for retrieving meteorological data at AWN weather stations. This project was created with code from MesoPy (https://github.com/mesowx/MesoPy).
 
 **Before using AWNPy, you will need to register with AgWeatherNet and obtain permission to access the API** Once you have permission you will need your AgWeatherNet username and password: 
 ```
