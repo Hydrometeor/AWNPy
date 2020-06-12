@@ -249,6 +249,9 @@ class AWN(object):
             pass
         else:
             raise ValueError('Invalid return_timezone. Must be UTC, PDT, or PST')
+        # convert columns to proper variable type:
+        for column in df.columns:
+            df[column] = pd.to_numeric(df[column], errors='coerce')
         return df
 
 
