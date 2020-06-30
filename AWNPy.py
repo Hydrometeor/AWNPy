@@ -252,6 +252,8 @@ class AWN(object):
         # convert columns to proper variable type:
         for column in df.columns:
             df[column] = pd.to_numeric(df[column], errors='coerce')
+        # sort by index to get correct order of things
+        df.sort_index(inplace=True)
         return df
 
 
@@ -383,7 +385,7 @@ class AWN(object):
         return_dataframe: bool, optional
             If true, return results as a Pandas Dataframe. If false, return results as a dict. Note that if multiple
             stations are returned, True will return a dictionary of DataFrames labeled by station ID.
-        return_timesone: string, optional
+        return_timezone: string, optional
             Timezone of returned timestamps. Default is PST (UTC-8). 'UTC' returns UTC. 'PDT' returns timezone-aware
             timestamps (either UTC-7 or UTC-8 depending on daylight savings time).
         ----------
@@ -544,6 +546,59 @@ class AWN(object):
 
         else:
             return response_data
+
+
+    def stationlocator(self, return_dataframe=False, **kwargs):
+        r""" Returns the closest stations to a specificed lat/lon. Specifying a lat/lon is required. Qty and max_miles
+        are optional parameters.
+        See below for optional parameters.
+
+        Arguments:
+        return_dataframe: bool, optional
+            If true, return results as a Pandas Dataframe. If false, return results as a dict.
+        ----------
+        LATITUDE: string, required
+            Latitude of the point to search from
+        LONGITUDE: string, required
+            Latitude of the point to search from
+        QTY: string, optional
+            Number of stations to return--for example, specifying '30' returns the 30 closest stations to the lat/lon
+            point.
+        MAX_MILES: string, optional
+            If specified, limits the stations returned to only those within the number of miles specified. If MAX_MILES
+            is specified then QTY is ignored.
+
+        Returns:
+        --------
+        A dictionary or pandas dataframe of metadata containing the following:
+        STATION_ID: The unique station identifier assigned by the AgWeatherNet program to the weather station.
+        STATION_NAME: The current common name of the weather station.  This may change without notice and is intended
+            as a friendly reference to the station.
+        DISTANCE: The distance in miles between the station and the specified lat/lon.
+        LATITUDE: The latitude of the physical location of the weather station, in degrees
+        LONGITUDE: The longitude of the physical location of the weather station, in degrees.
+        ELEVATION: The elevation compared to sea level of the base of the weather station.
+        NETWORK: Network code???
+
+        Raises:
+        -------
+            None.
+
+        """
+
+        #self._check_geo_param(kwargs)
+        try:
+            kwargs['uname'] = self.username
+            kwargs['pass'] = self.password
+        except:
+            print('user/pass not specified')
+
+        response_data = self._get_response('stationlocator', kwargs)
+        pdb.set_trace()
+        if return_dataframe:
+            return pd.DataFrame.from_dict(response_data['stations'])
+        else:
+            return response_data['stations']
 
 
 
