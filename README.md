@@ -4,7 +4,7 @@ AWNPy is a small pure python wrapper around the AgWeatherNet (https://weather.ws
 
 **Before using AWNPy, you will need to register with AgWeatherNet and obtain permission to access the API** Once you have permission you will need your AgWeatherNet username and password: 
 ```
-m = AWN(user='YOUR USERNAME', password='YOUR PASSWORD')
+m = AWN(username='YOUR USERNAME', password='YOUR PASSWORD')
 ```
 ## Installation
 
@@ -16,7 +16,7 @@ You can request different types of observations by simply creating a Meso object
 
 ```
 from AWNPy import AWN
-m = AWN(user='YOUR USERNAME', password='YOUR PASSWORD)
+m = AWN(username='YOUR USERNAME', password='YOUR PASSWORD)
 stationdata = m.stationdata(stid='330092', start=datetime(2020,5,1,0,0), end=datetime(2020,5,2,0,0))
 ```
 
