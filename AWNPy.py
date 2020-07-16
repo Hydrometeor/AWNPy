@@ -182,8 +182,9 @@ class AWN(object):
             raise AWNPyError(json_error)
 
         return self._checkresponse(json_data)
+    
 
-    def _check_geo_param(self, arg_list):
+    def _check_kwargs(self, arg_list):
         r""" Checks each function call to make sure that the user has provided at least one of the following geographic
         parameters: 'stid', 'state', 'country', 'county', 'radius', 'bbox', 'cwa', 'nwsfirezone', 'gacc', or 'subgacc'.
 
@@ -204,11 +205,17 @@ class AWN(object):
 
         """
 
-        geo_func = lambda a, b: any(i in b for i in a)
-        check = geo_func(self.geo_criteria, arg_list)
-        if check is False:
-            raise AWNPyError('No stations or geographic search criteria specified. Please provide one of the '
-                              'following: stid, state, county, country, radius, bbox, cwa, nwsfirezone, gacc, subgacc')
+        acceptable_kwargs = ['STATION_ID', 'INSTALLATION_DATE', 'STATE', 'COUNTY', 'START', 'END', 'FORMAT', 'BASIS',
+                             'AT', 'RH', 'P', 'WS', 'WD', 'LW', 'SR', 'ST2', 'ST8', 'SM8', 'MSLP', 'LATITUDE',
+                             'LONGITUDE', 'QTY', 'MAX_MILES', 'SHOWAT1']
+
+        spec_args = [k for k in arg_list]
+        for spec_arg in spec_args:
+            if spec_arg not in acceptable_kwargs:
+                raise AWNPyError(
+                    'A specified kwarg did not match the acceptable list. Check that STATION_ID, START, END, '
+                    'etc., are specified exactly (case-sensitive) as in the documentation.')
+        return
 
 
     def _station_name_to_station_id(self, kwargs):
@@ -367,7 +374,7 @@ class AWN(object):
 
         """
 
-        #self._check_geo_param(kwargs)
+        self._check_kwargs(kwargs)
         kwargs['uname'] = self.username
         kwargs['pass'] = self.password
 
@@ -376,6 +383,7 @@ class AWN(object):
             return pd.DataFrame.from_dict(response_data['message'])
         else:
             return response_data['message']
+
 
     def stationdata(self, return_dataframe=False, return_timezone='PST', **kwargs):
         r""" Returns station data station or stations. Specifying no kwargs will return data for all stations.
@@ -521,6 +529,7 @@ class AWN(object):
 
         """
 
+        self._check_kwargs(kwargs)
         kwargs['uname'] = self.username
         kwargs['pass'] = self.password
         # if start/end are passed as strings, convert to datetime
@@ -586,7 +595,7 @@ class AWN(object):
 
         """
 
-        #self._check_geo_param(kwargs)
+        self._check_kwargs(kwargs)
         try:
             kwargs['uname'] = self.username
             kwargs['pass'] = self.password
