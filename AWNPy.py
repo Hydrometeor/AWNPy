@@ -246,8 +246,17 @@ class AWN(object):
         # if no data simply return the empty dataframe
         if df.empty:
             return df
-        df.set_index('TIMESTAMP_PST', inplace=True)
+        try:
+            df.set_index('TIMESTAMP_PST', inplace=True)
+        except:
+            # this is what returns for 'DAILY' data
+            df.set_index('JULDATE_PST', inplace=True)
         df.index = pd.to_datetime(df.index)
+        # if daily data, return
+        if df.index.name == 'JULDATE_PST':
+            df.sort_index(inplace=True)
+            return df
+        # if not daily data convert timestamps
         if return_timezone == 'UTC':
             df.index = df.index.tz_localize('UTC') + pd.Timedelta(hours=8)
         elif return_timezone == 'PDT':
@@ -528,7 +537,6 @@ class AWN(object):
             None.
 
         """
-
         self._check_kwargs(kwargs)
         kwargs['uname'] = self.username
         kwargs['pass'] = self.password
@@ -537,6 +545,13 @@ class AWN(object):
         # if STATION_NAME specified, convert to STATION_ID
         if 'STATION_NAME' in kwargs:
             kwargs = self._station_name_to_station_id(kwargs)
+        # if BASIS='DAILY' in kwargs, convert the datetimes to dates
+        if 'BASIS' in kwargs:
+            if kwargs['BASIS'] == 'DAILY':
+                if 'START' in kwargs:
+                    kwargs['START'] = kwargs['START'].date()
+                if 'END' in kwargs:
+                    kwargs['END'] = kwargs['END'].date()
 
         response_data = self._get_response('stationdata', kwargs)
         num_stations = len(response_data['message'])
@@ -603,7 +618,7 @@ class AWN(object):
             print('user/pass not specified')
 
         response_data = self._get_response('stationlocator', kwargs)
-        pdb.set_trace()
+
         if return_dataframe:
             return pd.DataFrame.from_dict(response_data['stations'])
         else:
