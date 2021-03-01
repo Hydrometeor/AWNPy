@@ -207,7 +207,7 @@ class AWN(object):
 
         acceptable_kwargs = ['STATION_ID', 'INSTALLATION_DATE', 'STATE', 'COUNTY', 'START', 'END', 'FORMAT', 'BASIS',
                              'AT', 'RH', 'P', 'WS', 'WD', 'LW', 'SR', 'ST2', 'ST8', 'SM8', 'MSLP', 'LATITUDE',
-                             'LONGITUDE', 'QTY', 'MAX_MILES', 'SHOWAT1']
+                             'LONGITUDE', 'QTY', 'MAX_MILES', 'SHOWAT1', 'SHOWEXTRA']
 
         spec_args = [k for k in arg_list]
         for spec_arg in spec_args:
@@ -301,37 +301,37 @@ class AWN(object):
         COUNTY: string, optional
             If supplied, only stations that match the county will be returned.
         AT: string, optional
-            If supplied, valid values are “Y” or “N”.  Stations will be filtered on whether or not they have an air
-            temperature sensor (Y=Yes, N=No).
+            If supplied, valid values are "Y" or "N".  Stations will be filtered on whether or not they have an air
+            temperature sensor (Y=Yes, N=No)
         RH: string, optional
-            If supplied, valid values are “Y” or “N”.  Stations will be filtered on whether or not they have a relative
+            If supplied, valid values are "Y" or "N".  Stations will be filtered on whether or not they have a relative
             humidity sensor (Y=Yes, N=No).
         P: string, optional
-            If supplied, valid values are “Y” or “N”. Stations will be filtered on whether or not they have a
+            If supplied, valid values are "Y" or "N". Stations will be filtered on whether or not they have a
             precipitation sensor (Y=Yes, N=No).
         WS: string, optional
-            If supplied, valid values are “Y” or “N”.  Stations will be filtered on whether or not they have a wind
+            If supplied, valid values are "Y" or "N".  Stations will be filtered on whether or not they have a wind
             speed sensor (Y=Yes, N=No).
         WD: string, optional
-            If supplied, valid values are “Y” or “N”.  Stations will be filtered on whether or not they have a wind
+            If supplied, valid values are "Y" or "N".  Stations will be filtered on whether or not they have a wind
             direction sensor (Y=Yes, N=No).
         LW: string, optional
-            If supplied, valid values are “Y” or “N”.  Stations will be filtered on whether or not they have a leaf
+            If supplied, valid values are "Y" or "N".  Stations will be filtered on whether or not they have a leaf
             wetness sensor (Y=Yes, N=No).
         SR: string, optional
-            If supplied, valid values are “Y” or “N”.  Stations will be filtered on whether or not they have a
+            If supplied, valid values are "Y" or "N".  Stations will be filtered on whether or not they have a
             solar radiation sensor (Y=Yes, N=No).
         ST2: string, optional
-            If supplied, valid values are “Y” or “N”.  Stations will befiltered on whether or not they have a soil
+            If supplied, valid values are "Y" or "N".  Stations will befiltered on whether or not they have a soil
             temperature sensor at 2 inch depth (Y=Yes, N=No).
         ST8: string, optional
-            If supplied, valid values are “Y” or “N”.  Stations will be filtered on whether or not they have a soil
+            If supplied, valid values are "Y" or "N".  Stations will be filtered on whether or not they have a soil
             temperature sensor at 8 inch depth (Y=Yes, N=No).
         SM8: string, optional
-            If supplied, valid values are “Y” or “N”.  Stations will be filtered on whether or not they have a soil
+            If supplied, valid values are "Y" or "N".  Stations will be filtered on whether or not they have a soil
              moisture sensor at 8 inch depth (Y=Yes, N=No).
         MSLP: string, optional
-            If supplied, valid values are “Y” or “N”.  Stations will be filtered on whether or not they have an air
+            If supplied, valid values are "Y" or "N".  Stations will be filtered on whether or not they have an air
              pressure sensor (Y=Yes, N=No).
 
         Returns:
@@ -433,40 +433,40 @@ class AWN(object):
             If supplied, specifies the format of the output.  Valid options are JSON which is also the default if the
             parameter is not included.
         BASIS: string, optional
-            If supplied, valid values are “DAILY”, Station data will be sent in 15 minute basis if not set, or daily
+            If supplied, valid values are "DAILY", Station data will be sent in 15 minute basis if not set, or daily
             basis if BASIS is set to DAILY.
         AT: string, optional
-            If supplied, valid values are “Y” or “N”.  Stations will be filtered on whether or not they have an air
+            If supplied, valid values are "Y" or "N".  Stations will be filtered on whether or not they have an air
             temperature sensor (Y=Yes, N=No).
         RH: string, optional
-            If supplied, valid values are “Y” or “N”.  Stations will be filtered on whether or not they have a relative
+            If supplied, valid values are "Y" or "N".  Stations will be filtered on whether or not they have a relative
             humidity sensor (Y=Yes, N=No).
         P: string, optional
-            If supplied, valid values are “Y” or “N”. Stations will be filtered on whether or not they have a
+            If supplied, valid values are "Y" or "N". Stations will be filtered on whether or not they have a
             precipitation sensor (Y=Yes, N=No).
         WS: string, optional
-            If supplied, valid values are “Y” or “N”.  Stations will be filtered on whether or not they have a wind
+            If supplied, valid values are "Y" or "N".  Stations will be filtered on whether or not they have a wind
             speed sensor (Y=Yes, N=No).
         WD: string, optional
-            If supplied, valid values are “Y” or “N”.  Stations will be filtered on whether or not they have a wind
+            If supplied, valid values are "Y" or "N".  Stations will be filtered on whether or not they have a wind
             direction sensor (Y=Yes, N=No).
         LW: string, optional
-            If supplied, valid values are “Y” or “N”.  Stations will be filtered on whether or not they have a leaf
+            If supplied, valid values are "Y" or "N".  Stations will be filtered on whether or not they have a leaf
             wetness sensor (Y=Yes, N=No).
         SR: string, optional
-            If supplied, valid values are “Y” or “N”.  Stations will be filtered on whether or not they have a
+            If supplied, valid values are "Y" or "N".  Stations will be filtered on whether or not they have a
             solar radiation sensor (Y=Yes, N=No).
         ST2: string, optional
-            If supplied, valid values are “Y” or “N”.  Stations will be filtered on whether or not they have a soil
+            If supplied, valid values are "Y" or "N".  Stations will be filtered on whether or not they have a soil
             temperature sensor at 2 inch depth (Y=Yes, N=No).
         ST8: string, optional
-            If supplied, valid values are “Y” or “N”.  Stations will be filtered on whether or not they have a soil
+            If supplied, valid values are "Y" or "N".  Stations will be filtered on whether or not they have a soil
             temperature sensor at 8 inch depth (Y=Yes, N=No).
         SM8: string, optional
-            If supplied, valid values are “Y” or “N”.  Stations will be filtered on whether or not they have a soil
+            If supplied, valid values are "Y" or "N".  Stations will be filtered on whether or not they have a soil
              moisture sensor at 8 inch depth (Y=Yes, N=No).
         MSLP: string, optional
-            If supplied, valid values are “Y” or “N”.  Stations will be filtered on whether or not they have an air
+            If supplied, valid values are "Y" or "N".  Stations will be filtered on whether or not they have an air
              pressure sensor (Y=Yes, N=No).
 
         Returns:
