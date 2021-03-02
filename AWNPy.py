@@ -163,15 +163,19 @@ class AWN(object):
                      
         json_error = 'Could not retrieve JSON values. Try again with a shorter date range.'
 
-        # For python 3.4
+        # For python 3.4+, using POST
         try:
-            qsp = urllib.parse.urlencode(request_dict, doseq=True)
-            resp = urllib.request.urlopen(self.base_url + endpoint + '/?' + qsp).read()
-        # For python 2.7
+            #qsp = urllib.parse.urlencode(request_dict, doseq=True)
+            #resp = urllib.request.urlopen(self.base_url + endpoint + '/?' + qsp).read()
+            data = urllib.parse.urlencode(request_dict).encode()
+            req = urllib.request.Request(self.base_url + endpoint + '/', data=data)  # this will make the method "POST"
+            resp = urllib.request.urlopen(req).read()
+        # For python 2.7 -- uses GET -- best practice should be to use Python 3
         except AttributeError or NameError:
             try:
                 qsp = urllib.urlencode(request_dict, doseq=True)
                 resp = urllib2.urlopen(self.base_url + endpoint + '?' + qsp).read()
+
             except urllib2.URLError:
                 raise AWNPyError(http_error)
         except urllib.error.URLError:
