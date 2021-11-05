@@ -360,6 +360,7 @@ class AWN(object):
         STATION_SPONSOR: Acknowledgements of support or contributions to the location, installation or maintenance of
             a weather station
         TIER: Station tier (1, 2, or 3). See weather.wsu.edu for details.
+        ACTIVE_STATION: If the station is active, then the value will be Y. Otherwise, the value will be N.
         AT_F: If the weather station has an air temperature sensor installed that reports in Degrees Fahrenheit, then
             the value will be Y.  If no sensor is installed, then the value will be N.
         RH_PCNT: If the weather station has a relative humidity sensor installed that reports in Percent, then the
