@@ -116,7 +116,7 @@ class AWN(object):
 
         """
 
-        results_error = 'No results were found matching your query'
+        results_error = 'No results were found matching your query. Try for a different START and END range.'
         auth_error = 'Username/password not valid, please contact weather@wsu.edu to ' \
                      'resolve this'
         rule_error = 'This request violates a rule of the API. Please check the guidelines for formatting a data ' \
@@ -134,6 +134,8 @@ class AWN(object):
             raise AWNPyError(auth_error)
         elif response['status'] == -1:
             raise AWNPyError(rule_error)
+        elif response['status'] == 0:
+            raise AWNPyError(results_error)
         else:
             raise AWNPyError(catch_error)
 
